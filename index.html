@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estados de México — Juego</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#334155;
+    --text:#f1f5f9; --muted:#94a3b8; --accent:#38bdf8;
+    --ok:#22c55e; --err:#ef4444; --pista:#facc15;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--bg); color:var(--text);
+    display:flex; flex-direction:column;
+  }
+  header{
+    padding:.75rem 1.25rem;
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--panel); border-bottom:1px solid var(--panel2);
+    flex-wrap:wrap; gap:.5rem;
+  }
+  header strong{font-size:1.05rem}
+  .hud{display:flex; gap:1rem; font-size:.85rem; color:var(--muted)}
+  .hud b{color:var(--accent)}
+  main{
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; padding:1rem; gap:.75rem; overflow:hidden;
+  }
+  .prompt{
+    font-size:clamp(1.05rem,2.4vw,1.5rem); text-align:center;
+    padding:.75rem 1.5rem; background:var(--panel);
+    border-radius:12px; border:1px solid var(--panel2);
+    min-height:3.2rem; display:flex; align-items:center; justify-content:center;
+  }
+  .prompt .target{color:var(--accent); font-weight:800; margin-left:.35rem}
+  .controls{display:flex; gap:.5rem; flex-wrap:wrap; justify-content:center}
+  .ctrl{
+    padding:.5rem .9rem; font-size:.85rem;
+    background:var(--panel); color:var(--text);
+    border:1px solid var(--panel2); border-radius:8px; cursor:pointer;
+    transition:background .15s;
+  }
+  .ctrl:hover{background:var(--panel2)}
+  .ctrl:disabled{opacity:.4; cursor:not-allowed}
+  #mapa{
+    width:100%; max-width:980px; flex:1;
+    min-height:0;
+    background:var(--panel);
+    border-radius:14px;
+    border:1px solid var(--panel2);
+    cursor:grab;
+    touch-action:none;
+    display:block;
+  }
+  #mapa:active{cursor:grabbing}
+  .estado{
+    fill:var(--panel2);
+    stroke:#0f172a;
+    stroke-width:.5;
+    cursor:pointer;
+    transition:fill .15s;
+    pointer-events:all;
+  }
+  .estado:hover{fill:#475569}
+  .estado.correcto{fill:var(--ok)!important; stroke:#065f46}
+  .estado.incorrecto{fill:var(--err)!important}
+  .estado.pista{fill:var(--pista)!important}
+  .modal{
+    position:fixed; inset:0; z-index:20;
+    background:rgba(15,23,42,.85);
+    display:flex; align-items:center; justify-content:center;
+    padding:1rem;
+  }
+  .modal[hidden]{display:none}
+  .card{
+    background:var(--panel); border:1px solid var(--panel2);
+    border-radius:16px; padding:1.75rem; max-width:480px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .card h2{margin:0 0 1rem; font-size:1.25rem}
+  .opciones{display:grid; gap:.5rem}
+  .opciones button{
+    padding:.85rem 1rem; font-size:.95rem; text-align:left;
+    background:var(--panel2); color:var(--text);
+    border:1px solid #475569; border-radius:8px; cursor:pointer;
+    transition:background .15s;
+  }
+  .opciones button:hover:not(:disabled){background:#475569}
+  .opciones button:disabled{cursor:default}
+  .opciones button.ok{background:var(--ok); border-color:var(--ok); color:#052e16; font-weight:700}
+  .opciones button.err{background:var(--err); border-color:var(--err); color:#fff}
+  .btn{
+    padding:.8rem 1.4rem; font-size:1rem; font-weight:700;
+    background:var(--accent); color:#0f172a;
+    border:none; border-radius:8px; cursor:pointer; margin-top:1rem;
+  }
+  .btn:hover{filter:brightness(1.1)}
+  .feedback{
+    position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    font-size:5rem; font-weight:900;
+    pointer-events:none; z-index:15;
+    animation:pop .75s ease-out forwards;
+    text-shadow:0 4px 20px rgba(0,0,0,.5);
+  }
+  @keyframes pop{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.4)}
+    30%{opacity:1; transform:translate(-50%,-50%) scale(1.15)}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1.6)}
+  }
+  .feedback.ok{color:var(--ok)}
+  .feedback.err{color:var(--err)}
+  .small{color:var(--muted); font-size:.85rem; line-height:1.5}
+</style>
+</head>
+<body>
+
+<header>
+  <strong>Estados de México para Aremi </strong>
+  <div class="hud">
+    <span>Ronda <b id="hudRonda">0</b>/<b id="hudTotal">10</b></span>
+    <span>✓ <b id="hudOk">0</b></span>
+    <span>✗ <b id="hudErr">0</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="prompt" id="prompt">Cargando mapa…</div>
+  <div class="controls">
+    <button class="ctrl" id="btnPista">💡 Pista</button>
+    <button class="ctrl" id="btnSaltar">Saltar →</button>
+    <button class="ctrl" id="btnReset">🔄 Reiniciar</button>
+  </div>
+  <svg id="mapa" viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid meet"></svg>
+</main>
+
+<!-- Modal: pregunta de capital -->
+<div class="modal" id="modalCapital" hidden>
+  <div class="card">
+    <h2 id="capitalTitulo"></h2>
+    <div class="opciones" id="capitalOpciones"></div>
+  </div>
+</div>
+
+<!-- Modal: fin del juego -->
+<div class="modal" id="modalFin" hidden>
+  <div class="card">
+    <h2>¡Terminaste! 🎉</h2>
+    <p class="small" id="finResumen"></p>
+    <button class="btn" onclick="location.reload()">Jugar de nuevo</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>
+/* ============================================================
+   1. DATOS: 32 estados + capitales
+   ============================================================ */
+const ESTADOS = [
+  { nombre:'Aguascalientes',      capital:'Aguascalientes' },
+  { nombre:'Baja California',     capital:'Mexicali' },
+  { nombre:'Baja California Sur', capital:'La Paz' },
+  { nombre:'Campeche',            capital:'San Francisco de Campeche' },
+  { nombre:'Chiapas',             capital:'Tuxtla Gutiérrez' },
+  { nombre:'Chihuahua',           capital:'Chihuahua' },
+  { nombre:'Ciudad de México',    capital:'Ciudad de México' },
+  { nombre:'Coahuila',            capital:'Saltillo' },
+  { nombre:'Colima',              capital:'Colima' },
+  { nombre:'Durango',             capital:'Victoria de Durango' },
+  { nombre:'Guanajuato',          capital:'Guanajuato' },
+  { nombre:'Guerrero',            capital:'Chilpancingo de los Bravo' },
+  { nombre:'Hidalgo',             capital:'Pachuca de Soto' },
+  { nombre:'Jalisco',             capital:'Guadalajara' },
+  { nombre:'Estado de México',    capital:'Toluca de Lerdo' },
+  { nombre:'Michoacán',           capital:'Morelia' },
+  { nombre:'Morelos',             capital:'Cuernavaca' },
+  { nombre:'Nayarit',             capital:'Tepic' },
+  { nombre:'Nuevo León',          capital:'Monterrey' },
+  { nombre:'Oaxaca',              capital:'Oaxaca de Juárez' },
+  { nombre:'Puebla',              capital:'Puebla de Zaragoza' },
+  { nombre:'Querétaro',           capital:'Santiago de Querétaro' },
+  { nombre:'Quintana Roo',        capital:'Chetumal' },
+  { nombre:'San Luis Potosí',     capital:'San Luis Potosí' },
+  { nombre:'Sinaloa',             capital:'Culiacán' },
+  { nombre:'Sonora',              capital:'Hermosillo' },
+  { nombre:'Tabasco',             capital:'Villahermosa' },
+  { nombre:'Tamaulipas',          capital:'Ciudad Victoria' },
+  { nombre:'Tlaxcala',            capital:'Tlaxcala' },
+  { nombre:'Veracruz',            capital:'Xalapa' },
+  { nombre:'Yucatán',             capital:'Mérida' },
+  { nombre:'Zacatecas',           capital:'Zacatecas' }
+];
+
+/* Aliases: como pueden venir los nombres en el GeoJSON */
+const ALIAS = {
+  'mexico':'estado de mexico',
+  'michoacan de ocampo':'michoacan',
+  'coahuila de zaragoza':'coahuila',
+  'veracruz de ignacio de la llave':'veracruz',
+  'veracruz-llave':'veracruz',
+  'veracruz de ignacio de la llave ':'veracruz',
+  'distrito federal':'ciudad de mexico',
+  'df':'ciudad de mexico',
+  'queretaro de arteaga':'queretaro'
+};
+
+/* Estados pequeños: se hace auto-zoom */
+const PEQUENOS = new Set([
+  'ciudad de mexico','tlaxcala','morelos','aguascalientes','colima','queretaro'
+]);
+
+/* ============================================================
+   2. UTILIDADES
+   ============================================================ */
+function normalize(s){
+  if(!s) return '';
+  let n = String(s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim()
+    .replace(/^estado de /,'');
+  if(ALIAS[n]) n = ALIAS[n];
+  return n;
+}
+
+const ESTADOS_BY_KEY = {};
+ESTADOS.forEach(e => ESTADOS_BY_KEY[normalize(e.nombre)] = e);
+
+/* ============================================================
+   3. CONFIG
+   ============================================================ */
+const RONDAS = 10;
+const FUENTES_GEOJSON = [
+  './mexico.json',
+  'https://cdn.jsdelivr.net/gh/angelnmara/geojson@master/mexicoHigh.json',
+  'https://raw.githubusercontent.com/angelnmara/geojson/master/mexicoHigh.json'
+];
+
+/* ============================================================
+   4. ESTADO DEL JUEGO
+   ============================================================ */
+const juego = {
+  ronda:0, aciertos:0, errores:0,
+  objetivo:null,
+  fase:'cargando',   // cargando | buscar | capital | fin
+  completados:[],
+  estadosValidos:[]
+};
+
+/* ============================================================
+   5. MAPA (D3)
+   ============================================================ */
+const svgEl = document.getElementById('mapa');
+const svg = d3.select(svgEl);
+const g = svg.append('g');
+const projection = d3.geoMercator();
+const path = d3.geoPath().projection(projection);
+const pathsPorKey = {};
+
+const zoom = d3.zoom()
+  .scaleExtent([1, 12])
+  .on('zoom', (e) => g.attr('transform', e.transform));
+svg.call(zoom);
+
+async function fetchGeoJSON(){
+  for(const url of FUENTES_GEOJSON){
+    try{
+      const r = await fetch(url);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      console.log('✅ GeoJSON cargado desde:', url);
+      return j;
+    }catch(e){
+      console.warn('⚠️ Falló fuente:', url, e.message);
+    }
+  }
+  throw new Error('No se pudo cargar el GeoJSON desde ninguna fuente');
+}
+
+function detectarNombreProp(props){
+  const candidatos = ['name','NOM_ENT','NOMBRE','nombre','NAME_1','state','STATE_NAME','ENTIDAD'];
+  for(const c of candidatos){
+    if(props && props[c] != null) return c;
+  }
+  return Object.keys(props || {})[0];
+}
+
+async function cargarMapa(){
+  try{
+    const gj = await fetchGeoJSON();
+    const nameKey = detectarNombreProp(gj.features[0].properties);
+
+    projection.fitSize([1000,640], gj);
+
+    g.selectAll('path')
+      .data(gj.features)
+      .join('path')
+      .attr('class','estado')
+      .attr('d', path)
+      .attr('data-nombre', d => d.properties[nameKey])
+      .on('click', function(event, d){
+        event.stopPropagation();
+        manejarClicEstado(d.properties[nameKey]);
+      })
+      .each(function(d){
+        const k = normalize(d.properties[nameKey]);
+        pathsPorKey[k] = this;
+      });
+
+    // Solo estados que sí existen en el GeoJSON
+    juego.estadosValidos = ESTADOS.filter(e => pathsPorKey[normalize(e.nombre)]);
+    console.log(`Estados jugables: ${juego.estadosValidos.length}/32`);
+
+    if(juego.estadosValidos.length < 25){
+      document.getElementById('prompt').textContent =
+        '⚠️ Pocos estados emparejados ('+juego.estadosValidos.length+'/32). Revisa consola.';
+    }
+    iniciarJuego();
+  }catch(err){
+    console.error(err);
+    document.getElementById('prompt').innerHTML =
+      '❌ No se pudo cargar el mapa.<br><span class="small">Descarga el GeoJSON y guárdalo como <code>mexico.json</code> junto a este archivo.</span>';
+  }
+}
+
+/* ============================================================
+   6. LÓGICA DEL JUEGO
+   ============================================================ */
+function iniciarJuego(){
+  Object.assign(juego,{ronda:0,aciertos:0,errores:0,completados:[],fase:'buscar'});
+  document.getElementById('hudTotal').textContent = RONDAS;
+  actualizarHUD();
+  siguienteRonda();
+}
+
+function actualizarHUD(){
+  document.getElementById('hudRonda').textContent = juego.ronda;
+  document.getElementById('hudOk').textContent    = juego.aciertos;
+  document.getElementById('hudErr').textContent   = juego.errores;
+}
+
+function elegirObjetivo(){
+  const faltantes = juego.estadosValidos.filter(e => !juego.completados.includes(e.nombre));
+  const pool = faltantes.length ? faltantes : juego.estadosValidos;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function siguienteRonda(){
+  if(juego.ronda >= RONDAS){ terminarJuego(); return; }
+  juego.ronda++;
+  juego.objetivo = elegirObjetivo();
+  juego.fase = 'buscar';
+  actualizarHUD();
+
+  document.getElementById('prompt').innerHTML =
+    `Encuentra en el mapa: <span class="target">${juego.objetivo.nombre}</span>`;
+
+  d3.selectAll('.estado')
+    .classed('correcto',false)
+    .classed('incorrecto',false)
+    .classed('pista',false);
+
+  const key = normalize(juego.objetivo.nombre);
+  if(PEQUENOS.has(key)){
+    setTimeout(()=>zoomAEstado(key, 5), 250);
+  }else{
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+  }
+}
+
+function zoomAEstado(key, escala=5){
+  const el = pathsPorKey[key];
+  if(!el) return;
+  const b = el.getBBox();
+  const cx = b.x + b.width/2;
+  const cy = b.y + b.height/2;
+  const t = d3.zoomIdentity.translate(500,320).scale(escala).translate(-cx,-cy);
+  svg.transition().duration(700).call(zoom.transform, t);
+}
+
+function manejarClicEstado(nombreGeo){
+  if(juego.fase !== 'buscar' || !juego.objetivo) return;
+  const key = normalize(nombreGeo);
+  const objetivoKey = normalize(juego.objetivo.nombre);
+
+  if(key === objetivoKey){
+    juego.aciertos++;
+    juego.completados.push(juego.objetivo.nombre);
+    juego.fase = 'capital';
+    d3.select(pathsPorKey[key]).classed('correcto', true);
+    flashFeedback('✓','ok');
+    actualizarHUD();
+    setTimeout(preguntarCapital, 700);
+  }else{
+    juego.errores++;
+    actualizarHUD();
+    const el = pathsPorKey[key];
+    if(el){
+      d3.select(el).classed('incorrecto', true);
+      setTimeout(()=>d3.select(el).classed('incorrecto',false), 800);
+    }
+    flashFeedback('✗','err');
+  }
+}
+
+function flashFeedback(txt, tipo){
+  const el = document.createElement('div');
+  el.className = 'feedback ' + tipo;
+  el.textContent = txt;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 800);
+}
+
+/* ---------- Pregunta de capital ---------- */
+function preguntarCapital(){
+  const estado = juego.objetivo;
+  const modal = document.getElementById('modalCapital');
+  const titulo = document.getElementById('capitalTitulo');
+  const cont = document.getElementById('capitalOpciones');
+
+  titulo.textContent = `¿Cuál es la capital de ${estado.nombre}?`;
+  cont.innerHTML = '';
+
+  const incorrectas = ESTADOS
+    .filter(e => e.nombre !== estado.nombre)
+    .sort(()=>Math.random()-0.5)
+    .slice(0,3)
+    .map(e => e.capital);
+
+  const opciones = [estado.capital, ...incorrectas].sort(()=>Math.random()-0.5);
+
+  opciones.forEach(op => {
+    const b = document.createElement('button');
+    b.textContent = op;
+    b.onclick = () => responderCapital(b, op, estado.capital);
+    cont.appendChild(b);
+  });
+
+  modal.hidden = false;
+}
+
+function responderCapital(btn, elegida, correcta){
+  const botones = document.querySelectorAll('#capitalOpciones button');
+  botones.forEach(b => b.disabled = true);
+
+  if(elegida === correcta){
+    btn.classList.add('ok');
+    flashFeedback('✓','ok');
+  }else{
+    btn.classList.add('err');
+    botones.forEach(b => { if(b.textContent === correcta) b.classList.add('ok'); });
+    flashFeedback('✗','err');
+    juego.errores++;
+  }
+  actualizarHUD();
+
+  setTimeout(()=>{
+    document.getElementById('modalCapital').hidden = true;
+    siguienteRonda();
+  }, 1400);
+}
+
+/* ---------- Fin del juego ---------- */
+function terminarJuego(){
+  juego.fase = 'fin';
+  document.getElementById('finResumen').innerHTML = `
+    Estados ubicados correctamente: <b>${juego.aciertos}</b><br>
+    Errores totales: <b>${juego.errores}</b><br>
+    Estados recorridos: <b>${juego.completados.length}</b>
+  `;
+  document.getElementById('modalFin').hidden = false;
+}
+
+/* ============================================================
+   7. BOTONES
+   ============================================================ */
+document.getElementById('btnPista').onclick = () => {
+  if(juego.fase !== 'buscar' || !juego.objetivo) return;
+  const key = normalize(juego.objetivo.nombre);
+  const el = pathsPorKey[key];
+  if(!el) return;
+  zoomAEstado(key, 5);
+  d3.select(el).classed('pista', true);
+  setTimeout(()=>d3.select(el).classed('pista',false), 1200);
+  juego.errores++;
+  actualizarHUD();
+};
+
+document.getElementById('btnSaltar').onclick = () => {
+  if(juego.fase !== 'buscar') return;
+  juego.errores++;
+  actualizarHUD();
+  siguienteRonda();
+};
+
+document.getElementById('btnReset').onclick = () => {
+  if(confirm('¿Reiniciar la partida?')) iniciarJuego();
+};
+
+/* ============================================================
+   8. ARRANQUE
+   ============================================================ */
+cargarMapa();
+</script>
+</body>
+</html>
