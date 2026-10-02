@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Países del Mundo — Capitales</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#1e293b; --panel2:#334155;
+    --text:#f1f5f9; --muted:#94a3b8; --accent:#38bdf8;
+    --ok:#22c55e; --err:#ef4444; --pista:#facc15;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--bg); color:var(--text);
+    display:flex; flex-direction:column; overflow:hidden}
+  header{padding:.75rem 1.25rem; display:flex; justify-content:space-between;
+    align-items:center; background:var(--panel);
+    border-bottom:1px solid var(--panel2); flex-wrap:wrap; gap:.5rem}
+  header strong{font-size:1.05rem}
+  .hud{display:flex; gap:1rem; font-size:.85rem; color:var(--muted)}
+  .hud b{color:var(--accent)}
+  main{flex:1; display:flex; flex-direction:column; align-items:center;
+    padding:.75rem; gap:.6rem; overflow:hidden; min-height:0}
+  .prompt{font-size:clamp(1rem,2.2vw,1.4rem); text-align:center;
+    padding:.7rem 1.4rem; background:var(--panel); border-radius:12px;
+    border:1px solid var(--panel2); min-height:3rem;
+    display:flex; align-items:center; justify-content:center}
+  .prompt .target{color:var(--accent); font-weight:800; margin-left:.35rem}
+  .controls{display:flex; gap:.4rem; flex-wrap:wrap; justify-content:center}
+  .ctrl{padding:.45rem .85rem; font-size:.8rem; background:var(--panel);
+    color:var(--text); border:1px solid var(--panel2); border-radius:8px;
+    cursor:pointer; transition:background .15s}
+  .ctrl:hover{background:var(--panel2)}
+  .ctrl:disabled{opacity:.4; cursor:not-allowed}
+  #mapa{width:100%; max-width:1200px; flex:1; min-height:0;
+    background:#0a1628; border-radius:14px;
+    border:1px solid var(--panel2); cursor:grab; touch-action:none; display:block}
+  #mapa:active{cursor:grabbing}
+  .pais{stroke:#0b1220; stroke-width:.4; cursor:pointer;
+    transition:fill .2s, opacity .3s; pointer-events:all}
+  .pais:hover{filter:brightness(1.4)}
+  .pais.atenuado{opacity:.15; pointer-events:none}
+  .pais.correcto{fill:var(--ok)!important; stroke:#065f46; opacity:1}
+  .pais.incorrecto{fill:var(--err)!important; opacity:1}
+  .pais.pista{fill:var(--pista)!important; opacity:1}
+  .modal{position:fixed; inset:0; z-index:20; background:rgba(11,18,32,.9);
+    display:flex; align-items:center; justify-content:center; padding:1rem;
+    backdrop-filter:blur(4px)}
+  .modal[hidden]{display:none}
+  .card{background:var(--panel); border:1px solid var(--panel2);
+    border-radius:16px; padding:1.75rem; max-width:520px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .card h2{margin:0 0 1rem; font-size:1.25rem}
+  .card p{color:var(--muted); line-height:1.5; margin:.5rem 0}
+  .regiones{display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:1rem}
+  .regiones button{padding:1rem; font-size:1rem; font-weight:600;
+    background:var(--panel2); color:var(--text);
+    border:1px solid #475569; border-radius:10px; cursor:pointer;
+    transition:all .15s}
+  .regiones button:hover{background:var(--accent); color:#0b1220; border-color:var(--accent)}
+  .regiones button .flag{font-size:1.4rem; display:block; margin-bottom:.25rem}
+  .opciones{display:grid; gap:.5rem}
+  .opciones button{padding:.85rem 1rem; font-size:.95rem; text-align:left;
+    background:var(--panel2); color:var(--text);
+    border:1px solid #475569; border-radius:8px; cursor:pointer;
+    transition:background .15s}
+  .opciones button:hover:not(:disabled){background:#475569}
+  .opciones button:disabled{cursor:default}
+  .opciones button.ok{background:var(--ok); border-color:var(--ok); color:#052e16; font-weight:700}
+  .opciones button.err{background:var(--err); border-color:var(--err); color:#fff}
+  .btn{padding:.8rem 1.4rem; font-size:1rem; font-weight:700;
+    background:var(--accent); color:#0b1220;
+    border:none; border-radius:8px; cursor:pointer; margin-top:1rem; width:100%}
+  .btn:hover{filter:brightness(1.1)}
+  .feedback{position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:5rem; font-weight:900; pointer-events:none; z-index:15;
+    animation:pop .75s ease-out forwards; text-shadow:0 4px 20px rgba(0,0,0,.6)}
+  @keyframes pop{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.4)}
+    30%{opacity:1; transform:translate(-50%,-50%) scale(1.15)}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1.6)}
+  }
+  .feedback.ok{color:var(--ok)}
+  .feedback.err{color:var(--err)}
+  .loading{color:var(--muted); text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <strong>🌍 Capitales del Mundo</strong>
+  <div class="hud">
+    <span id="hudRegion"></span>
+    <span>Ronda <b id="hudRonda">0</b>/<b id="hudTotal">10</b></span>
+    <span>✓ <b id="hudOk">0</b></span>
+    <span>✗ <b id="hudErr">0</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="prompt" id="prompt">Cargando mapa del mundo…</div>
+  <div class="controls">
+    <button class="ctrl" id="btnPista">💡 Pista</button>
+    <button class="ctrl" id="btnSaltar">Saltar →</button>
+    <button class="ctrl" id="btnReset">🔄 Cambiar región</button>
+  </div>
+  <svg id="mapa" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet"></svg>
+</main>
+
+<!-- Modal: selección de región -->
+<div class="modal" id="modalRegion">
+  <div class="card">
+    <h2>Elige una región para jugar</h2>
+    <p>Cada partida tiene 10 rondas. Te pediremos ubicar un país en el mapa y luego preguntaremos su capital.</p>
+    <div class="regiones" id="regionesBotones"></div>
+  </div>
+</div>
+
+<!-- Modal: pregunta de capital -->
+<div class="modal" id="modalCapital" hidden>
+  <div class="card">
+    <h2 id="capitalTitulo"></h2>
+    <div class="opciones" id="capitalOpciones"></div>
+  </div>
+</div>
+
+<!-- Modal: fin -->
+<div class="modal" id="modalFin" hidden>
+  <div class="card">
+    <h2>¡Terminaste! 🎉</h2>
+    <p id="finResumen"></p>
+    <button class="btn" id="btnOtraVez">Jugar otra región</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>
+/* ============================================================
+   DATASET: ISO_A3, Nombre ES, Capital ES, Región
+   Regiones: A=América, E=Europa, S=Asia, F=África, O=Oceanía
+   ============================================================ */
+const P = [
+  // ---------- AMÉRICA ----------
+  ['MEX','México','Ciudad de México','A'],
+  ['USA','Estados Unidos','Washington D. C.','A'],
+  ['CAN','Canadá','Ottawa','A'],
+  ['GTM','Guatemala','Ciudad de Guatemala','A'],
+  ['BLZ','Belice','Belmopán','A'],
+  ['SLV','El Salvador','San Salvador','A'],
+  ['HND','Honduras','Tegucigalpa','A'],
+  ['NIC','Nicaragua','Managua','A'],
+  ['CRI','Costa Rica','San José','A'],
+  ['PAN','Panamá','Ciudad de Panamá','A'],
+  ['CUB','Cuba','La Habana','A'],
+  ['DOM','República Dominicana','Santo Domingo','A'],
+  ['HTI','Haití','Puerto Príncipe','A'],
+  ['JAM','Jamaica','Kingston','A'],
+  ['BHS','Bahamas','Nasáu','A'],
+  ['BRB','Barbados','Bridgetown','A'],
+  ['TTO','Trinidad y Tobago','Puerto España','A'],
+  ['COL','Colombia','Bogotá','A'],
+  ['VEN','Venezuela','Caracas','A'],
+  ['GUY','Guyana','Georgetown','A'],
+  ['SUR','Surinam','Paramaribo','A'],
+  ['ECU','Ecuador','Quito','A'],
+  ['PER','Perú','Lima','A'],
+  ['BRA','Brasil','Brasilia','A'],
+  ['BOL','Bolivia','Sucre','A'],
+  ['PRY','Paraguay','Asunción','A'],
+  ['URY','Uruguay','Montevideo','A'],
+  ['ARG','Argentina','Buenos Aires','A'],
+  ['CHL','Chile','Santiago','A'],
+  // ---------- EUROPA ----------
+  ['ESP','España','Madrid','E'],
+  ['PRT','Portugal','Lisboa','E'],
+  ['FRA','Francia','París','E'],
+  ['GBR','Reino Unido','Londres','E'],
+  ['IRL','Irlanda','Dublín','E'],
+  ['DEU','Alemania','Berlín','E'],
+  ['ITA','Italia','Roma','E'],
+  ['NLD','Países Bajos','Ámsterdam','E'],
+  ['BEL','Bélgica','Bruselas','E'],
+  ['LUX','Luxemburgo','Luxemburgo','E'],
+  ['CHE','Suiza','Berna','E'],
+  ['AUT','Austria','Viena','E'],
+  ['DNK','Dinamarca','Copenhague','E'],
+  ['NOR','Noruega','Oslo','E'],
+  ['SWE','Suecia','Estocolmo','E'],
+  ['FIN','Finlandia','Helsinki','E'],
+  ['ISL','Islandia','Reikiavik','E'],
+  ['POL','Polonia','Varsovia','E'],
+  ['CZE','República Checa','Praga','E'],
+  ['SVK','Eslovaquia','Bratislava','E'],
+  ['HUN','Hungría','Budapest','E'],
+  ['ROU','Rumania','Bucarest','E'],
+  ['BGR','Bulgaria','Sofía','E'],
+  ['GRC','Grecia','Atenas','E'],
+  ['HRV','Croacia','Zagreb','E'],
+  ['SRB','Serbia','Belgrado','E'],
+  ['BIH','Bosnia y Herzegovina','Sarajevo','E'],
+  ['MNE','Montenegro','Podgorica','E'],
+  ['ALB','Albania','Tirana','E'],
+  ['MKD','Macedonia del Norte','Skopie','E'],
+  ['SVN','Eslovenia','Liubliana','E'],
+  ['UKR','Ucrania','Kiev','E'],
+  ['BLR','Bielorrusia','Minsk','E'],
+  ['RUS','Rusia','Moscú','E'],
+  ['LTU','Lituania','Vilna','E'],
+  ['LVA','Letonia','Riga','E'],
+  ['EST','Estonia','Tallin','E'],
+  ['MDA','Moldavia','Chisináu','E'],
+  ['CYP','Chipre','Nicosia','E'],
+  ['MLT','Malta','La Valeta','E'],
+  // ---------- ASIA ----------
+  ['CHN','China','Pekín','S'],
+  ['JPN','Japón','Tokio','S'],
+  ['KOR','Corea del Sur','Seúl','S'],
+  ['PRK','Corea del Norte','Pionyang','S'],
+  ['MNG','Mongolia','Ulán Bator','S'],
+  ['IND','India','Nueva Delhi','S'],
+  ['PAK','Pakistán','Islamabad','S'],
+  ['AFG','Afganistán','Kabul','S'],
+  ['IRN','Irán','Teherán','S'],
+  ['IRQ','Irak','Bagdad','S'],
+  ['SAU','Arabia Saudita','Riad','S'],
+  ['ARE','Emiratos Árabes Unidos','Abu Dabi','S'],
+  ['ISR','Israel','Jerusalén','S'],
+  ['JOR','Jordania','Amán','S'],
+  ['LBN','Líbano','Beirut','S'],
+  ['SYR','Siria','Damasco','S'],
+  ['TUR','Turquía','Ankara','S'],
+  ['KAZ','Kazajistán','Astaná','S'],
+  ['UZB','Uzbekistán','Taskent','S'],
+  ['TKM','Turkmenistán','Asjabad','S'],
+  ['KGZ','Kirguistán','Biskek','S'],
+  ['TJK','Tayikistán','Dusambé','S'],
+  ['NPL','Nepal','Katmandú','S'],
+  ['BTN','Bután','Timbu','S'],
+  ['BGD','Bangladés','Daca','S'],
+  ['LKA','Sri Lanka','Sri Jayawardenepura Kotte','S'],
+  ['MMR','Myanmar','Naipyidó','S'],
+  ['THA','Tailandia','Bangkok','S'],
+  ['LAO','Laos','Vientián','S'],
+  ['KHM','Camboya','Nom Pen','S'],
+  ['VNM','Vietnam','Hanói','S'],
+  ['MYS','Malasia','Kuala Lumpur','S'],
+  ['SGP','Singapur','Singapur','S'],
+  ['IDN','Indonesia','Yakarta','S'],
+  ['PHL','Filipinas','Manila','S'],
+  ['TLS','Timor Oriental','Dili','S'],
+  ['YEM','Yemen','Saná','S'],
+  ['OMN','Omán','Mascate','S'],
+  ['QAT','Catar','Doha','S'],
+  ['KWT','Kuwait','Kuwait','S'],
+  ['BHR','Baréin','Manama','S'],
+  ['GEO','Georgia','Tiflis','S'],
+  ['ARM','Armenia','Ereván','S'],
+  ['AZE','Azerbaiyán','Bakú','S'],
+  // ---------- ÁFRICA ----------
+  ['EGY','Egipto','El Cairo','F'],
+  ['LBY','Libia','Trípoli','F'],
+  ['TUN','Túnez','Túnez','F'],
+  ['DZA','Argelia','Argel','F'],
+  ['MAR','Marruecos','Rabat','F'],
+  ['SDN','Sudán','Jartum','F'],
+  ['SSD','Sudán del Sur','Yuba','F'],
+  ['ETH','Etiopía','Adís Abeba','F'],
+  ['ERI','Eritrea','Asmara','F'],
+  ['SOM','Somalia','Mogadiscio','F'],
+  ['DJI','Yibuti','Yibuti','F'],
+  ['KEN','Kenia','Nairobi','F'],
+  ['UGA','Uganda','Kampala','F'],
+  ['TZA','Tanzania','Dodoma','F'],
+  ['RWA','Ruanda','Kigali','F'],
+  ['BDI','Burundi','Gitega','F'],
+  ['COD','Rep. Dem. del Congo','Kinsasa','F'],
+  ['COG','República del Congo','Brazzaville','F'],
+  ['CAF','República Centroafricana','Bangui','F'],
+  ['TCD','Chad','Yamena','F'],
+  ['CMR','Camerún','Yaundé','F'],
+  ['NGA','Nigeria','Abuya','F'],
+  ['NER','Níger','Niamey','F'],
+  ['MLI','Malí','Bamako','F'],
+  ['BFA','Burkina Faso','Uagadugú','F'],
+  ['SEN','Senegal','Dakar','F'],
+  ['GMB','Gambia','Banjul','F'],
+  ['GNB','Guinea-Bisáu','Bisáu','F'],
+  ['GIN','Guinea','Conakri','F'],
+  ['SLE','Sierra Leona','Freetown','F'],
+  ['LBR','Liberia','Monrovia','F'],
+  ['CIV','Costa de Marfil','Yamusukro','F'],
+  ['GHA','Ghana','Acra','F'],
+  ['TGO','Togo','Lomé','F'],
+  ['BEN','Benín','Porto Novo','F'],
+  ['GAB','Gabón','Libreville','F'],
+  ['GNQ','Guinea Ecuatorial','Malabo','F'],
+  ['AGO','Angola','Luanda','F'],
+  ['ZMB','Zambia','Lusaka','F'],
+  ['MWI','Malaui','Lilongüe','F'],
+  ['MOZ','Mozambique','Maputo','F'],
+  ['ZWE','Zimbabue','Harare','F'],
+  ['BWA','Botsuana','Gaborone','F'],
+  ['NAM','Namibia','Windhoek','F'],
+  ['ZAF','Sudáfrica','Pretoria','F'],
+  ['LSO','Lesoto','Maseru','F'],
+  ['SWZ','Esuatini','Mbabane','F'],
+  ['MDG','Madagascar','Antananarivo','F'],
+  // ---------- OCEANÍA ----------
+  ['AUS','Australia','Canberra','O'],
+  ['NZL','Nueva Zelanda','Wellington','O'],
+  ['PNG','Papúa Nueva Guinea','Port Moresby','O'],
+  ['FJI','Fiyi','Suva','O'],
+  ['SLB','Islas Salomón','Honiara','O'],
+  ['VUT','Vanuatu','Port Vila','O'],
+  ['WSM','Samoa','Apia','O'],
+  ['TON','Tonga','Nukualofa','O'],
+  ['KIR','Kiribati','Tarawa','O'],
+  ['PLW','Palaos','Ngerulmud','O'],
+  ['FSM','Micronesia','Palikir','O'],
+  ['MHL','Islas Marshall','Majuro','O'],
+  ['NRU','Nauru','Yaren','O']
+];
+
+const REGIONES = {
+  A:{ nombre:'América',  flag:'🌎' },
+  E:{ nombre:'Europa',   flag:'🇪🇺' },
+  S:{ nombre:'Asia',     flag:'🌏' },
+  F:{ nombre:'África',   flag:'🌍' },
+  O:{ nombre:'Oceanía',  flag:'🌊' }
+};
+
+const PAISES = P.map(r => ({ iso:r[0], nombre:r[1], capital:r[2], region:r[3] }));
+const PAIS_BY_ISO = {};
+PAISES.forEach(p => PAIS_BY_ISO[p.iso] = p);
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const RONDAS = 10;
+const FUENTES = [
+  './world.geojson',
+  'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson',
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson'
+];
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const juego = {
+  ronda:0, aciertos:0, errores:0,
+  region:null, objetivo:null,
+  fase:'seleccion',
+  completados:[]
+};
+
+/* ============================================================
+   D3 / MAPA
+   ============================================================ */
+const svgEl = document.getElementById('mapa');
+const svg = d3.select(svgEl);
+const g = svg.append('g');
+const projection = d3.geoNaturalEarth1();
+const path = d3.geoPath().projection(projection);
+const pathsPorISO = {};
+let geoFeatures = [];
+
+const zoom = d3.zoom().scaleExtent([1, 30])
+  .on('zoom', e => g.attr('transform', e.transform));
+svg.call(zoom);
+
+async function cargarGeo(){
+  for(const url of FUENTES){
+    try{
+      const r = await fetch(url);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      console.log('✅ GeoJSON mundo cargado desde:', url);
+      return j;
+    }catch(e){ console.warn('⚠️ Falló:', url, e.message); }
+  }
+  throw new Error('No se pudo cargar el GeoJSON');
+}
+
+async function init(){
+  try{
+    const gj = await cargarGeo();
+    geoFeatures = gj.features;
+
+    projection.fitSize([1200,640], gj);
+
+    // Detectar campo ISO
+    const sample = geoFeatures[0].properties;
+    const isoKey = ['ISO_A3','ADM0_A3','iso_a3','ISO_A3_EH'].find(k => sample[k] && sample[k] !== '-99')
+      || Object.keys(sample).find(k => /iso.*3/i.test(k));
+
+    g.selectAll('path')
+      .data(geoFeatures)
+      .join('path')
+      .attr('class','pais')
+      .attr('d', path)
+      .attr('fill', '#3b5a7a')
+      .attr('data-iso', d => d.properties[isoKey] || '')
+      .on('click', function(e,d){
+        e.stopPropagation();
+        manejarClic(d.properties[isoKey]);
+      })
+      .each(function(d){
+        const iso = d.properties[isoKey];
+        if(iso) pathsPorISO[iso] = this;
+      });
+
+    console.log('Países en GeoJSON:', Object.keys(pathsPorISO).length);
+    console.log('Países en dataset:', PAISES.length);
+
+    // Cuales del dataset no matchean con el mapa
+    const sinMapa = PAISES.filter(p => !pathsPorISO[p.iso]).map(p => p.nombre);
+    if(sinMapa.length) console.warn('⚠️ Sin match en mapa:', sinMapa);
+
+    abrirSelectorRegion();
+  }catch(err){
+    console.error(err);
+    document.getElementById('prompt').innerHTML =
+      '❌ No se pudo cargar el mapa del mundo.<br><span style="color:#94a3b8;font-size:.85rem">Revisa la consola.</span>';
+  }
+}
+
+/* ============================================================
+   SELECTOR DE REGIÓN
+   ============================================================ */
+function abrirSelectorRegion(){
+  const cont = document.getElementById('regionesBotones');
+  cont.innerHTML = '';
+  Object.entries(REGIONES).forEach(([code, info]) => {
+    const total = PAISES.filter(p => p.region === code && pathsPorISO[p.iso]).length;
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="flag">${info.flag}</span>${info.nombre}<br><span style="font-size:.75rem;opacity:.7">${total} países</span>`;
+    b.onclick = () => iniciarPartida(code);
+    cont.appendChild(b);
+  });
+  document.getElementById('modalRegion').hidden = false;
+}
+
+/* ============================================================
+   JUEGO
+   ============================================================ */
+function iniciarPartida(regionCode){
+  document.getElementById('modalRegion').hidden = true;
+  document.getElementById('modalFin').hidden = true;
+
+  juego.ronda = 0;
+  juego.aciertos = 0;
+  juego.errores = 0;
+  juego.completados = [];
+  juego.region = regionCode;
+  juego.fase = 'buscar';
+
+  document.getElementById('hudRegion').textContent = REGIONES[regionCode].flag + ' ' + REGIONES[regionCode].nombre;
+  document.getElementById('hudTotal').textContent = RONDAS;
+  actualizarHUD();
+
+  // Atenuar países de otras regiones
+  const enRegion = new Set(PAISES.filter(p => p.region === regionCode).map(p => p.iso));
+  Object.entries(pathsPorISO).forEach(([iso, el]) => {
+    d3.select(el).classed('atenuado', !enRegion.has(iso));
+    d3.select(el).classed('correcto', false)
+                  .classed('incorrecto', false)
+                  .classed('pista', false);
+  });
+
+  zoomARegion(regionCode);
+  setTimeout(siguienteRonda, 600);
+}
+
+function zoomARegion(regionCode){
+  const isos = PAISES.filter(p => p.region === regionCode).map(p => p.iso);
+  const paths = isos.map(i => pathsPorISO[i]).filter(Boolean);
+  if(!paths.length) return;
+
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  paths.forEach(el => {
+    const b = el.getBBox();
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+  });
+
+  const bw = x1 - x0, bh = y1 - y0;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const escala = Math.min(1200/bw, 640/bh) * 0.85;
+  const t = d3.zoomIdentity.translate(600,320).scale(escala).translate(-cx,-cy);
+  svg.transition().duration(800).call(zoom.transform, t);
+}
+
+function zoomAPais(iso, factor=6){
+  const el = pathsPorISO[iso];
+  if(!el) return;
+  const b = el.getBBox();
+  const cx = b.x + b.width/2, cy = b.y + b.height/2;
+  const escala = Math.max(2, Math.min(30, Math.min(1200/b.width, 640/b.height) * 0.5));
+  const t = d3.zoomIdentity.translate(600,320).scale(escala).translate(-cx,-cy);
+  svg.transition().duration(700).call(zoom.transform, t);
+}
+
+function actualizarHUD(){
+  document.getElementById('hudRonda').textContent = juego.ronda;
+  document.getElementById('hudOk').textContent = juego.aciertos;
+  document.getElementById('hudErr').textContent = juego.errores;
+}
+
+function siguienteRonda(){
+  if(juego.ronda >= RONDAS){ terminar(); return; }
+  juego.ronda++;
+
+  const pool = PAISES.filter(p =>
+    p.region === juego.region &&
+    pathsPorISO[p.iso] &&
+    !juego.completados.includes(p.iso)
+  );
+  if(!pool.length){ terminar(); return; }
+  juego.objetivo = pool[Math.floor(Math.random() * pool.length)];
+  juego.fase = 'buscar';
+  actualizarHUD();
+
+  document.getElementById('prompt').innerHTML =
+    `Encuentra en el mapa: <span class="target">${juego.objetivo.nombre}</span>`;
+
+  // Quitar marcas previas
+  d3.selectAll('.pais.correcto, .pais.incorrecto').classed('correcto', false).classed('incorrecto', false);
+
+  // Si el país es pequeño, autozoom
+  const el = pathsPorISO[juego.objetivo.iso];
+  if(el){
+    const b = el.getBBox();
+    if(b.width < 20 || b.height < 20 || (b.width * b.height) < 400){
+      setTimeout(() => zoomAPais(juego.objetivo.iso), 300);
+    }
+  }
+}
+
+function manejarClic(iso){
+  if(juego.fase !== 'buscar' || !juego.objetivo) return;
+
+  if(iso === juego.objetivo.iso){
+    juego.aciertos++;
+    juego.completados.push(iso);
+    juego.fase = 'capital';
+    d3.select(pathsPorISO[iso]).classed('correcto', true);
+    flashFeedback('✓','ok');
+    actualizarHUD();
+    setTimeout(preguntarCapital, 700);
+  } else {
+    juego.errores++;
+    actualizarHUD();
+    const el = pathsPorISO[iso];
+    if(el){
+      d3.select(el).classed('incorrecto', true);
+      setTimeout(() => d3.select(el).classed('incorrecto', false), 800);
+    }
+    flashFeedback('✗','err');
+  }
+}
+
+function flashFeedback(txt, tipo){
+  const el = document.createElement('div');
+  el.className = 'feedback ' + tipo;
+  el.textContent = txt;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+/* ============================================================
+   PREGUNTA DE CAPITAL
+   ============================================================ */
+function preguntarCapital(){
+  const pais = juego.objetivo;
+  document.getElementById('capitalTitulo').textContent =
+    `¿Cuál es la capital de ${pais.nombre}?`;
+
+  const cont = document.getElementById('capitalOpciones');
+  cont.innerHTML = '';
+
+  // Distractores: preferir misma región
+  const candidatos = PAISES
+    .filter(p => p.iso !== pais.iso && p.region === pais.region)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+    .map(p => p.capital);
+
+  // Si no hay suficiente de la región, rellenar con otras
+  while(candidatos.length < 3){
+    const c = PAISES[Math.floor(Math.random() * PAISES.length)].capital;
+    if(c !== pais.capital && !candidatos.includes(c)) candidatos.push(c);
+  }
+
+  const opciones = [pais.capital, ...candidatos].sort(() => Math.random() - 0.5);
+  opciones.forEach(op => {
+    const b = document.createElement('button');
+    b.textContent = op;
+    b.onclick = () => responderCapital(b, op, pais.capital);
+    cont.appendChild(b);
+  });
+
+  document.getElementById('modalCapital').hidden = false;
+}
+
+function responderCapital(btn, elegida, correcta){
+  const botones = document.querySelectorAll('#capitalOpciones button');
+  botones.forEach(b => b.disabled = true);
+
+  if(elegida === correcta){
+    btn.classList.add('ok');
+    flashFeedback('✓','ok');
+  } else {
+    btn.classList.add('err');
+    botones.forEach(b => { if(b.textContent === correcta) b.classList.add('ok'); });
+    flashFeedback('✗','err');
+    juego.errores++;
+  }
+  actualizarHUD();
+
+  setTimeout(() => {
+    document.getElementById('modalCapital').hidden = true;
+    siguienteRonda();
+  }, 1500);
+}
+
+/* ============================================================
+   FIN
+   ============================================================ */
+function terminar(){
+  juego.fase = 'fin';
+  const pct = juego.completados.length ? Math.round(juego.aciertos / RONDAS * 100) : 0;
+  document.getElementById('finResumen').innerHTML = `
+    Región: <b>${REGIONES[juego.region].flag} ${REGIONES[juego.region].nombre}</b><br>
+    Aciertos de ubicación: <b>${juego.aciertos}</b> / ${RONDAS}<br>
+    Errores totales: <b>${juego.errores}</b><br>
+    Precisión: <b>${pct}%</b>
+  `;
+  document.getElementById('modalFin').hidden = false;
+}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+document.getElementById('btnPista').onclick = () => {
+  if(juego.fase !== 'buscar' || !juego.objetivo) return;
+  const el = pathsPorISO[juego.objetivo.iso];
+  if(!el) return;
+  zoomAPais(juego.objetivo.iso);
+  d3.select(el).classed('pista', true);
+  setTimeout(() => d3.select(el).classed('pista', false), 1200);
+  juego.errores++;
+  actualizarHUD();
+};
+
+document.getElementById('btnSaltar').onclick = () => {
+  if(juego.fase !== 'buscar') return;
+  juego.errores++;
+  actualizarHUD();
+  siguienteRonda();
+};
+
+document.getElementById('btnReset').onclick = () => {
+  document.getElementById('modalCapital').hidden = true;
+  document.getElementById('modalFin').hidden = true;
+  abrirSelectorRegion();
+};
+
+document.getElementById('btnOtraVez').onclick = () => {
+  document.getElementById('modalFin').hidden = true;
+  abrirSelectorRegion();
+};
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+init();
+</script>
+</body>
+</html>
